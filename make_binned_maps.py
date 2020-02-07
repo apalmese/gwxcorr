@@ -209,7 +209,7 @@ for k in range(nzbins):
 
     plt.title('Bin '+str(k))
 
-#np.savetxt('out/gw_skymaps_bin{}.dat'.format(k),binned_maps[:,k])
+    np.savetxt('out/gw_skymaps_bin{}.dat'.format(k),binned_maps[:,k])
 
     plt.savefig('out/gw_bin{}.pdf'.format(k))
     #plt.show()
