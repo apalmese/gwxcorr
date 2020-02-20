@@ -7,13 +7,13 @@ import matplotlib.pyplot as plt
 import meander #pip install this to draw contours around skymap
 
 from glob import glob
-from urllib import urlretrieve
+from urllib import request
 from matplotlib import cm
 from astropy.io import fits
 from argparse import ArgumentParser
 from astropy.cosmology import FlatLambdaCDM,z_at_value
 import astropy.units as u 
-
+import os
 
 cosmo = FlatLambdaCDM(H0=70.,Om0=0.3)
 
@@ -73,7 +73,7 @@ parser.add_argument('-d', '--download', default=False,
 parser.add_argument('-m', '--maps', default="maps_no_BNS_events_6Feb20.tab",
                     help='File conatining filenames of skymaps to use')
 parser.add_argument('-b', '--zbins',
-                    default=[0.,0.15,0.3,1.], type=list,
+                    default=[0.,0.15,0.3,1.], type=float, nargs='+',
                     help='Redshift bins edges')
 args = parser.parse_args()
 
@@ -84,7 +84,7 @@ Download = args.download
 maps_filenames=args.maps
 zbins = args.zbins
 
-mapdir='skymaps/'
+mapdir='./skymaps'
 events = np.genfromtxt(events_file,delimiter=",",dtype=object)
 ids = events[:,0]
 
@@ -92,26 +92,26 @@ ids = events[:,0]
 #Download files
 
 if Download:
-	fitsFiles=[]
-
-	for event_id in ids:
-		fitsFile = 'LALInference_{}.fits.gz'.format(event_id)
-		if not os.path.isfile(mapdir+fitsFile):
-			url = 'https://gracedb.ligo.org/api/superevents/{}/files/LALInference.fits.gz'.format(event_id)
-			print('Downloading {}'.format(url))
-			out, outdict = urlretrieve(url, mapdir+fitsFile)
-			try:
-				test = outdict['content-disposition']
-				fitsFiles.append(fitsFile)
-			except:
-				url = 'https://gracedb.ligo.org/api/superevents/{}/files/bayestar.fits.gz'.format(event_id)
-				fitsFile = 'bayestar_{}.fits.gz'.format(event_id)
-				print('Downloading {}'.format(url))
-				out, outdict = urlretrieve(url, mapdir+fitsFile)
-				fitsFiles.append(fitsFile)
-	np.savetxt(maps_filenames,fitsFiles,fmt='%s')
+    fitsFiles=[]
+    for event_id in ids:
+        fitsFile = f'LALInference_{event_id}.fits.gz'
+        print(type(fitsFile), type(mapdir))
+        if not os.path.isfile(os.path.join(mapdir,fitsFile)):
+            url = f'https://gracedb.ligo.org/api/superevents/{event_id}/files/LALInference.fits.gz'
+            print(f'Downloading {url}')
+            out, outdict = request(url, os.path.join(mapdir, fitsFile))
+            try:
+                test = outdict['content-disposition']
+                fitsFiles.append(fitsFile)
+            except:
+                url = f'https://gracedb.ligo.org/api/superevents/{event_id}/files/bayestar.fits.gz'
+                fitsFile = f'bayestar_{event_id}.fits.gz'
+                print(f'Downloading {url}')
+                out, outdict = request(url, os.path.join(mapdir, fitsFile))
+                fitsFiles.append(fitsFile)
+    np.savetxt(maps_filenames,fitsFiles,fmt='%s')
 else:
-	fitsFiles = np.genfromtxt(maps_filenames,dtype=object)
+    fitsFiles = np.genfromtxt(maps_filenames,dtype=str)
 
 
 #Read files
@@ -124,22 +124,22 @@ sum_map = np.zeros(npix)
 nmaps=fitsFiles.shape[0]
 probs=np.zeros((npix,nmaps))
 zs=np.zeros(nmaps)
-
 for i in range(nmaps):
-        fitsFile = fitsFiles[i]
-        #try:
-        hdus = fits.open(mapdir+fitsFile)
-        header = hdus[1].header
-        dist = header['DISTMEAN']
-        zs[i] = z_at_value(cosmo.luminosity_distance, dist * u.Mpc, zmax=1.0)
-        prob = hp.read_map(mapdir+fitsFile)
-        nside = hp.pixelfunc.get_nside(prob)
-        print "Read ",fitsFile," with NSIDE ",nside
+    fitsFile = fitsFiles[i]
+    #try:
+    print(mapdir, fitsFile, type(mapdir), type(fitsFile))
+    hdus = fits.open(os.path.join(mapdir,fitsFile))
+    header = hdus[1].header
+    dist = header['DISTMEAN']
+    zs[i] = z_at_value(cosmo.luminosity_distance, dist * u.Mpc, zmax=1.0)
+    prob = hp.read_map(os.path.join(mapdir,fitsFile))
+    nside = hp.pixelfunc.get_nside(prob)
+    print("Read ",fitsFile," with NSIDE ",nside)
 
-        if (nside==1024):
-            probs[:,i] = prob
-        else:
-            probs[:,i] = hp.pixelfunc.ud_grade(prob, 1024)
+    if (nside==1024):
+        probs[:,i] = prob
+    else:
+        probs[:,i] = hp.pixelfunc.ud_grade(prob, 1024)
 
 		#sum_map=sum_map+prob
         #except:
@@ -207,9 +207,9 @@ for k in range(nzbins):
     ax.text(-1.5, -0.15, r'21$^\mathrm{h}$', horizontalalignment='center')
     ax.text(-2.0, -0.15, r'24$^\mathrm{h}$', horizontalalignment='center')
 
-    plt.title('Bin '+str(k))
+    plt.title(f'Bin {k}')
 
-    np.savetxt('out/gw_skymaps_bin{}.dat'.format(k),binned_maps[:,k])
+    hp.write_map(f'out/gw_skymaps_bin_{zbins[k]}_{zbins[k+1]}.fits',binned_maps[:,k])
 
-    plt.savefig('out/gw_bin{}.pdf'.format(k))
+    plt.savefig(f'out/gw_bin_{zbins[k]}_{zbins[k+1]}.pdf')
     #plt.show()
