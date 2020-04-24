@@ -25,7 +25,8 @@ parser.add_argument('--use-map', dest='use_map', action='store_true', default=Fa
     help='Use Healpy maps')
 #parser.add_argument('--n-jk', dest='n_jk', type=int, default=50, help='Number of JK regions')
 parser.add_argument('--linear', dest='linear', action='store_true', default=False, help='Use linear binning')
-parser.add_argument('--theta-bins', dest='tbins',type=int, default=30, help='Number of angular bins')
+parser.add_argument('--theta-bins', dest='tbins', type=int, default=30, help='Number of angular bins')
+parser.add_argument('--mask-gw', dest='mask_gw_path', type=str, default=None, help='Path to GW mask/exposure time maps')
 args = parser.parse_args()
 
 def make_hp_map(nside, input_data, weights=None):
@@ -94,13 +95,17 @@ nside = 1024
 mask = make_hp_map(nside, randoms) > 0
 data_out = dict()
 data_cov = dict()
+if args.mask_gw_path is not None:
+    mask_gw = hp.read_map(args.mask_gw_path)
+else:
+    mask_gw = np.ones(len(mask), dtype=np.float)
 for i in range(len(args.zbins)-1):
     print('Bin', i)
     zmin = args.zbins[i]
     zmax = args.zbins[i+1]
     map_gw = np.loadtxt(os.path.join(args.gw_path, f'gw_skymaps_bin{i}.dat'))
     map_gw[~mask] = 0.
-    map_gw[mask] = map_gw[mask]/np.mean(map_gw[mask])-1.
+    map_gw[mask] = (map_gw[mask]/mask_gw[mask])/np.mean(map_gw[mask]/mask_gw[mask])-1.
     zmask = (data['Z'] >= zmin) & (data['Z'] < zmax)
     zmask_rnd = (randoms['Z'] >= zmin) & (randoms['Z'] < zmax)
     # Mask unseen regions
