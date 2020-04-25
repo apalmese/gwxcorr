@@ -97,6 +97,8 @@ data_out = dict()
 data_cov = dict()
 if args.mask_gw_path is not None:
     mask_gw = hp.read_map(args.mask_gw_path)
+    if hp.get_nside(mask_gw) != nside:
+        mask_gw = hp.ud_grade(mask_gw, nside_out=nside)
 else:
     mask_gw = np.ones(len(mask), dtype=np.float)
 for i in range(len(args.zbins)-1):
